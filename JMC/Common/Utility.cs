@@ -190,7 +190,10 @@ namespace JMC.Common
         /// <returns>Int型の値</returns>
         public static int StrtoInt(string tempStr)
         {
-            if (NumericCheck(tempStr)) return int.Parse(tempStr);
+            if (NumericCheck(tempStr))
+            {
+                return int.Parse(tempStr);
+            }
             else return 0;
         }
 
@@ -1286,5 +1289,25 @@ namespace JMC.Common
         ///     RekiHosei</returns>
         ///----------------------------------------------------------
         public static int GetRekiHosei() => Properties.Settings.Default.RekiHosei;
+
+
+        ///---------------------------------------------------------------------
+        /// <summary>
+        ///     任意のディレクトリのファイルを削除する </summary>
+        /// <param name="sPath">
+        ///     指定するディレクトリ</param>
+        /// <param name="sFileType">
+        ///     ファイル名及び形式</param>
+        /// --------------------------------------------------------------------
+        public static void FileDelete(string sPath, string sFileType)
+        {
+            //sFileTypeワイルドカード"*"は、すべてのファイルを意味する
+            foreach (string files in System.IO.Directory.GetFiles(sPath, sFileType))
+            {
+                // ファイルを削除する
+                System.IO.File.Delete(files);
+            }
+        }
+
     }
 }

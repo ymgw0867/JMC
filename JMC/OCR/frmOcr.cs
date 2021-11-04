@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.IO;
 using System.Windows.Forms;
+using System.Drawing.Imaging;
 using IdrFormEngine;
 using Leadtools;
 using Leadtools.Codecs;
@@ -27,23 +28,482 @@ namespace JMC.OCR
 
         private void button1_Click(object sender, EventArgs e)
         {
-            if (MessageBox.Show("スキャナで作成された出勤簿画像データのOCR変換処理を実施します。よろしいですか？","実行確認",MessageBoxButtons.YesNo,MessageBoxIcon.Question) == DialogResult.No) return;
-            
-            // マルチTIFを分解する
-            MultiTif(Properties.Settings.Default.scanPath);
+            if (System.IO.Directory.GetFiles(Properties.Settings.Default.scanPath, "*.tif").Count() == 0)
+            {
+                MessageBox.Show("OCR認識対象となる画像がありません", "画像なし", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
-            // OCR認識処理を実施する
-            ocrMain(Properties.Settings.Default.readPath,
-                    Properties.Settings.Default.ngPath,
-                    Properties.Settings.Default.dataPath,
-                    Properties.Settings.Default.fmtFilePath,
-                    _pageCount);
+            if (MessageBox.Show("スキャナで作成された出勤簿画像データのOCR変換処理を実施します。よろしいですか？","実行確認",MessageBoxButtons.YesNo,MessageBoxIcon.Question) == DialogResult.No)
+            {
+                return;
+            }
 
-            //GetTifFile();
+            // ＯＣＲ認識処理
+            GetOcrText();
+
+
+            //// マルチTIFを分解する
+            //MultiTif(Properties.Settings.Default.scanPath);
+
+            //// OCR認識処理を実施する
+            //ocrMain(Properties.Settings.Default.readPath,
+            //        Properties.Settings.Default.ngPath,
+            //        Properties.Settings.Default.dataPath,
+            //        Properties.Settings.Default.fmtFilePath,
+            //        _pageCount);
+
+            ////GetTifFile();
 
             // 終了
             this.Close();
         }
+
+        private void GetOcrText()
+        {
+            try
+            {
+                if (System.IO.Directory.GetFiles(Properties.Settings.Default.scanPath, "*.tif").Count() == 0)
+                {
+                    // 対象画像がないときは戻る
+                    return;
+                }
+
+                DateTime dt = DateTime.Now;
+
+                // ファイル名（日付時間部分）
+                string fName = string.Format("{0:0000}", dt.Year) +
+                               string.Format("{0:00}", dt.Month) +
+                               string.Format("{0:00}", dt.Day) +
+                               string.Format("{0:00}", dt.Hour) +
+                               string.Format("{0:00}", dt.Minute) +
+                               string.Format("{0:00}", dt.Second);
+
+                int dNum = 0;
+
+                //マルチTiff画像をシングルtifに分解する(SCANフォルダ → TRAYフォルダ)
+                if (MultiTif_New(Properties.Settings.Default.scanPath, Properties.Settings.Default.workPath, Properties.Settings.Default.TrayPath))
+                {
+                    //WinReaderHandsのJOB名取得
+                    string jobname = Properties.Settings.Default.WinReader_Job;
+
+                    //ＯＣＲ対象画像ファイル数取得
+                    int imgCnt = System.IO.Directory.GetFiles(Properties.Settings.Default.TrayPath).Count();
+
+                    //WinReaderを起動して画像をスキャンしてOCR処理を実施する
+                    WinReaderOCR(jobname);
+
+                    // OCR認識結果ＣＳＶデータを出勤簿ごとに分割して画像ファイルと共にDATAフォルダへ移動する
+                    LoadCsvDivide(fName, ref dNum, Properties.Settings.Default.dataPath);
+
+                    //ログ表示
+                    //logGridView(dataGridView1, imgCnt, "ＯＣＲ認識を行いました");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+
+                //// ログ表示 : 2017/10/22
+                //string msg = ex.Message + " 処理は継続されています。";
+                //logGridView(dataGridView1, 0, msg);
+            }
+            finally
+            {
+                //notifyIcon1.Visible = true;
+            }
+        }
+
+
+        ///------------------------------------------------------------------------------
+        /// <summary>
+        ///     マルチフレームの画像ファイルを頁ごとに分割する：OpenCVバージョン</summary>
+        /// <param name="InPath">
+        ///     画像ファイル入力パス</param>
+        /// <param name="outPath">
+        ///     分割後出力パス</param>
+        /// <returns>
+        ///     true:分割を実施, false:分割ファイルなし</returns>
+        ///------------------------------------------------------------------------------
+        private bool MultiTif_New(string scanPath, string InPath, string outPath)
+        {
+            string curFnm = "";
+
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+
+                // 作業フォルダがなければ作成する 2021/04/17
+                if (!System.IO.Directory.Exists(InPath))
+                {
+                    System.IO.Directory.CreateDirectory(InPath);
+                }
+
+                // 出力先フォルダがなければ作成する
+                if (!System.IO.Directory.Exists(outPath))
+                {
+                    System.IO.Directory.CreateDirectory(outPath);
+                }
+
+                // 作業フォルダ(WORK)内の全てのファイルを削除する（通常ファイルは存在しないが例外処理などで残ってしまった場合に備えて念のため）
+                // 2021/04/17
+                foreach (string files in System.IO.Directory.GetFiles(InPath, "*"))
+                {
+                    System.IO.File.Delete(files);
+                }
+
+                // 出力先フォルダ(TRAY)内の全てのファイルを削除する（通常ファイルは存在しないが例外処理などで残ってしまった場合に備えて念のため）
+                foreach (string files in System.IO.Directory.GetFiles(outPath, "*"))
+                {
+                    System.IO.File.Delete(files);
+                }
+
+                // SCANフォルダ内の全てのファイルを作業フォルダに移動する　2021/04/17
+                foreach (string files in System.IO.Directory.GetFiles(scanPath, "*"))
+                {
+                    File.Copy(files, InPath + Path.GetFileName(files));
+                    File.Delete(files);
+                }
+
+                int _pageCount = 0;
+                string fnm = string.Empty;
+
+                // マルチTIFを分解して画像ファイルをTRAYフォルダへ保存する
+                foreach (string files in System.IO.Directory.GetFiles(InPath, "*.tif"))
+                {
+                    curFnm = files; // 2021/04/17
+
+                    //TIFFのImageCodecInfoを取得する//
+                    ImageCodecInfo ici = GetEncoderInfo("image/tiff");
+
+                    if (ici == null)
+                    {
+                        return false;
+                    }
+
+                    // 後片付けのためにusing 2021/04/17
+                    using (System.IO.FileStream tifFS = new System.IO.FileStream(files, System.IO.FileMode.Open, System.IO.FileAccess.Read))
+                    {
+                        Image gim = Image.FromStream(tifFS);
+
+                        FrameDimension gfd = new FrameDimension(gim.FrameDimensionsList[0]);
+
+                        //全体のページ数を得る
+                        int pageCount = gim.GetFrameCount(gfd);
+
+                        for (int i = 0; i < pageCount; i++)
+                        {
+                            gim.SelectActiveFrame(gfd, i);
+
+                            // 画像サイズ変更（Ａ４縦サイズ）
+                            //Bitmap jj = new Bitmap(gim, 1637, 2322);
+
+                            // 後片付けのためにusing 2021/04/17
+                            using (Bitmap jj = new Bitmap(gim, 1728, 2322))
+                            {
+                                // 画像解像度変更
+                                jj.SetResolution(200F, 200F);
+
+                                // ファイル名（日付時間部分）
+                                string fName = string.Format("{0:0000}", DateTime.Today.Year) + string.Format("{0:00}", DateTime.Today.Month) +
+                                               string.Format("{0:00}", DateTime.Today.Day)    + string.Format("{0:00}", DateTime.Now.Hour)    +
+                                               string.Format("{0:00}", DateTime.Now.Minute)   + string.Format("{0:00}", DateTime.Now.Second);
+
+                                _pageCount++;
+
+                                // ファイル名設定
+                                fnm = outPath + fName + string.Format("{0:000}", _pageCount) + ".tif";
+
+                                EncoderParameters ep = null;
+
+                                // 圧縮方法を指定する（後片付けのためにusing 2021/04/17）
+                                using (ep = new EncoderParameters(1))
+                                {
+                                    ep.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Compression, (long)EncoderValue.CompressionCCITT4);
+
+                                    //  コメント化：2021/03/22
+                                    //// 画像保存
+                                    //gim.Save(fnm, ici, ep);
+
+                                    // 画像保存
+                                    jj.Save(fnm, ici, ep);
+                                }
+                            }
+
+                            //  以下、コメント化：2021/04/17
+                            //ep = new EncoderParameters(1);
+                            //ep.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Compression, (long)EncoderValue.CompressionCCITT4);
+
+                            ////  コメント化：2021/03/22
+                            ////// 画像保存
+                            ////gim.Save(fnm, ici, ep);
+
+                            //// 画像保存
+                            //jj.Save(fnm, ici, ep);
+
+                            //ep.Dispose();
+
+                            //// 後片付け 2021/04/17
+                            //jj.Dispose();
+                        }
+
+                        // 後片付け 2021/04/17
+                        gim.Dispose();
+                    }
+                }
+
+                // InPathフォルダの全てのtifファイルを削除する
+                foreach (var files in System.IO.Directory.GetFiles(InPath, "*.tif"))
+                {
+                    System.IO.File.Delete(files);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(curFnm + " " + ex.Message);
+                return false;
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
+        }
+
+
+        ///----------------------------------------------------------------------------------
+        /// <summary>
+        ///     FormOCRを起動してOCR処理を行う </summary>
+        /// <param name="wrJobName">
+        ///     FormOCRのJOB名</param>
+        ///----------------------------------------------------------------------------------
+        private void WinReaderOCR(string wrJobName)
+        {
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+
+                // WinReaderJOB起動文字列
+                string JobName = @"""" + wrJobName + @"""" + " /H2";
+                string winReader_exe = Properties.Settings.Default.WinReader_Path + Properties.Settings.Default.WinReader_Prg;
+
+                // ProcessStartInfo の新しいインスタンスを生成する
+                System.Diagnostics.ProcessStartInfo p = new System.Diagnostics.ProcessStartInfo();
+
+                // 起動するアプリケーションを設定する
+                p.FileName = winReader_exe;
+
+                // コマンドライン引数を設定する（WinReaderのJOB起動パラメーター）
+                p.Arguments = JobName;
+
+                // WinReaderを起動します
+                System.Diagnostics.Process hProcess = System.Diagnostics.Process.Start(p);
+
+                // taskが終了するまで待機する
+                hProcess.WaitForExit();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
+        }
+
+
+        ///-----------------------------------------------------------------
+        /// <summary>
+        ///     伝票ＣＳＶデータを一枚ごとに分割する </summary>
+        /// <param name="dNum">
+        ///     ファイル名末尾連番</param>
+        /// <param name="cDir">
+        ///     グループ別出力フォルダ</param>
+        ///-----------------------------------------------------------------
+        private void LoadCsvDivide(string fnm, ref int dNum, string cDir)
+        {
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+
+                string imgName  = string.Empty;      // 画像ファイル名
+                string firstFlg = global.flgOn.ToString();
+                string[] stArrayData;               // CSVファイルを１行単位で格納する配列
+                string newFnm   = string.Empty;
+                int dCnt = 0;   // 処理件数
+
+                // 対象ファイルの存在を確認します
+                if (!System.IO.File.Exists(Properties.Settings.Default.readPath + Properties.Settings.Default.WinReader_OutFile))
+                {
+                    return;
+                }
+
+                //// 出力先フォルダ
+                //string rPath = Properties.Settings.Default.dataPath + cDir + @"\";
+
+                // 出力先フォルダが存在しないときは作成する
+                if (!System.IO.Directory.Exists(cDir))
+                {
+                    System.IO.Directory.CreateDirectory(cDir);
+                }
+
+                // StreamReader の新しいインスタンスを生成する
+                //入力ファイル
+                System.IO.StreamReader inFile = new System.IO.StreamReader(Properties.Settings.Default.readPath + Properties.Settings.Default.WinReader_OutFile, Encoding.Default);
+
+                // 読み込んだ結果をすべて格納するための変数を宣言する
+                string stResult = string.Empty;
+                string stBuffer;
+
+                // 行番号
+                int sRow = 0;
+
+                // 読み込みできる文字がなくなるまで繰り返す
+                while (inFile.Peek() >= 0)
+                {
+                    // ファイルを 1 行ずつ読み込む
+                    stBuffer = inFile.ReadLine();
+
+                    // カンマ区切りで分割して配列に格納する
+                    stArrayData = stBuffer.Split(',');
+
+                    //先頭に「*」があったら新たな伝票なのでCSVファイル作成
+                    if ((stArrayData[0] == "*"))
+                    {
+                        //最初の伝票以外のとき
+                        if (firstFlg != global.flgOn.ToString())
+                        {
+                            //ファイル書き出し
+                            OutFileWrite(stResult, Properties.Settings.Default.readPath + imgName, cDir + newFnm);
+                        }
+
+                        firstFlg = global.flgOff.ToString();
+
+                        // 伝票連番
+                        dNum++;
+
+                        // 処理件数
+                        dCnt++;
+
+                        // ファイル名
+                        newFnm = fnm + dNum.ToString().PadLeft(3, '0');
+
+                        //画像ファイル名を取得
+                        imgName = stArrayData[1];
+
+                        //文字列バッファをクリア
+                        stResult = string.Empty;
+
+                        // 文字列再校正（画像ファイル名を変更する）
+                        stBuffer = string.Empty;
+                        for (int i = 0; i < stArrayData.Length; i++)
+                        {
+                            if (stBuffer != string.Empty)
+                            {
+                                stBuffer += ",";
+                            }
+
+                            // 画像ファイル名を変更する
+                            if (i == 1)
+                            {
+                                stArrayData[i] = newFnm + ".tif"; // 画像ファイル名を変更
+                            }
+
+                            // フィールド結合
+                            stBuffer += stArrayData[i];
+                        }
+
+                        sRow = 0;
+                    }
+                    else
+                    {
+                        sRow++;
+                    }
+
+                    // 読み込んだものを追加で格納する
+                    stResult += (stBuffer + Environment.NewLine);
+                }
+
+                // 後処理
+                if (dNum > 0)
+                {
+                    //ファイル書き出し
+                    OutFileWrite(stResult, Properties.Settings.Default.readPath + imgName, cDir + newFnm);
+
+                    // 入力ファイルを閉じる
+                    inFile.Close();
+
+                    //入力ファイル削除 : "txtout.csv"
+                    Utility.FileDelete(Properties.Settings.Default.readPath, Properties.Settings.Default.WinReader_OutFile);
+
+                    //画像ファイル削除 : "WRH***.tif"
+                    Utility.FileDelete(Properties.Settings.Default.readPath, "WRH*.tif");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
+        }
+
+
+        ///----------------------------------------------------------------------------
+        /// <summary>
+        ///     分割ファイルを書き出す </summary>
+        /// <param name="tempResult">
+        ///     書き出す文字列</param>
+        /// <param name="tempImgName">
+        ///     元画像ファイルパス</param>
+        /// <param name="outFileName">
+        ///     新ファイル名</param>
+        ///----------------------------------------------------------------------------
+        private void OutFileWrite(string tempResult, string tempImgName, string outFileName)
+        {
+            //出力ファイル 2017/11/20
+            System.IO.StreamWriter outFile = new System.IO.StreamWriter(outFileName + ".csv", false, System.Text.Encoding.GetEncoding(932));
+
+            // ファイル書き出し
+            outFile.Write(tempResult);
+
+            //ファイルクローズ
+            outFile.Close();
+
+            //画像ファイルをコピー 2017/11/20
+            System.IO.File.Copy(tempImgName, outFileName + ".tif");
+        }
+
+
+        ///-------------------------------------------------------------------------
+        /// <summary>
+        ///     MimeTypeで指定されたImageCodecInfoを探して返す </summary>
+        /// <param name="mineType">
+        ///     </param>
+        /// <returns>
+        ///     </returns>
+        ///-------------------------------------------------------------------------
+        private static System.Drawing.Imaging.ImageCodecInfo GetEncoderInfo(string mineType)
+        {
+            //GDI+ に組み込まれたイメージ エンコーダに関する情報をすべて取得
+            System.Drawing.Imaging.ImageCodecInfo[] encs = System.Drawing.Imaging.ImageCodecInfo.GetImageEncoders();
+
+            //指定されたMimeTypeを探して見つかれば返す
+            foreach (System.Drawing.Imaging.ImageCodecInfo enc in encs)
+            {
+                if (enc.MimeType == mineType)
+                {
+                    return enc;
+                }
+            }
+            return null;
+        }
+
+
 
         private void GetTifFile()
         {

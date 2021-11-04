@@ -12,7 +12,7 @@ namespace JMC.Properties {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "16.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "16.10.0.0")]
     internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase {
         
         private static Settings defaultInstance = ((Settings)(global::System.Configuration.ApplicationSettingsBase.Synchronized(new Settings())));
@@ -79,7 +79,7 @@ namespace JMC.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("平成")]
+        [global::System.Configuration.DefaultSettingValueAttribute("20")]
         public string gengou {
             get {
                 return ((string)(this["gengou"]));
@@ -88,7 +88,7 @@ namespace JMC.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("1988")]
+        [global::System.Configuration.DefaultSettingValueAttribute("2020")]
         public int RekiHosei {
             get {
                 return ((int)(this["RekiHosei"]));
@@ -291,6 +291,51 @@ namespace JMC.Properties {
         public int imgDpi {
             get {
                 return ((int)(this["imgDpi"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("c:\\JMC\\TRAY\\")]
+        public string TrayPath {
+            get {
+                return ((string)(this["TrayPath"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("常陽メンテナンス様WinReaderHands")]
+        public string WinReader_Job {
+            get {
+                return ((string)(this["WinReader_Job"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("C:\\WinReaderHandS\\")]
+        public string WinReader_Path {
+            get {
+                return ((string)(this["WinReader_Path"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("WrhsMain.exe")]
+        public string WinReader_Prg {
+            get {
+                return ((string)(this["WinReader_Prg"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("txtout.csv")]
+        public string WinReader_OutFile {
+            get {
+                return ((string)(this["WinReader_OutFile"]));
             }
         }
     }

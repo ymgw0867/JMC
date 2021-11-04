@@ -114,7 +114,8 @@ namespace JMC.OCR
                 Utility.ComboShain.csvArrayLoad(_fName, ref xS);
 
                 //CSVデータをMDBへ読み込む
-                GetCsvDataToMDB();
+                //GetCsvDataToMDB();    //2021/11/04 コメント化
+                CsvData2MDB();  // 2021/11/04
 
                 //MDB件数カウント
                 if (CountMDB() == 0)
@@ -368,6 +369,245 @@ namespace JMC.OCR
             }
         }
 
+
+        ///----------------------------------------------------------
+        /// <summary>
+        ///     CSVデータをMDBへインサートする </summary>
+        ///----------------------------------------------------------
+        private void CsvData2MDB()
+        {
+            //CSVファイル数をカウント
+            string[] inCsv = System.IO.Directory.GetFiles(Properties.Settings.Default.dataPath, "*.csv");
+
+            //CSVファイルがなければ終了
+            int cTotal = 0;
+            if (inCsv.Length == 0)
+            {
+                return;
+            }
+            else
+            {
+                cTotal = inCsv.Length;
+            }
+
+            //オーナーフォームを無効にする
+            this.Enabled = false;
+
+            //プログレスバーを表示する
+            frmPrg frmP = new frmPrg
+            {
+                Owner = this
+            };
+
+            frmP.Show();
+
+            // データベースへ接続
+            SysControl.SetDBConnect Con = new SysControl.SetDBConnect();
+            OleDbCommand sCom = new OleDbCommand
+            {
+                Connection = Con.cnOpen()
+            };
+
+            //トランザクション開始
+            OleDbTransaction sTran = sCom.Connection.BeginTransaction();
+            sCom.Transaction = sTran;
+
+            DateTime dt;
+            string sYear  = "";
+            string sMonth = "";
+
+            try
+            {
+                //CSVデータをMDBへ取込
+                int cCnt = 0;
+                foreach (string files in System.IO.Directory.GetFiles(Properties.Settings.Default.dataPath, "*.csv"))
+                {
+                    //件数カウント
+                    cCnt++;
+
+                    // 行カウント
+                    int sline = 0;
+
+                    //プログレスバー表示
+                    frmP.Text = "OCR変換CSVデータロード中　" + cCnt.ToString() + "/" + cTotal.ToString();
+                    frmP.progressValue = cCnt / cTotal * 100;
+                    frmP.ProgressStep();
+
+                    // OCR処理対象のCSVファイルかファイル名の文字数を検証する
+                    string fn = Path.GetFileName(files);
+                    if (fn.Length == global.CSVFILENAMELENGTH)
+                    {
+                        StringBuilder sb = new StringBuilder();
+
+                        // ヘッダID
+                        string hdID = string.Empty;
+
+                        // CSVファイルインポート
+                        var s = File.ReadAllLines(files, Encoding.Default);
+                        foreach (var stBuffer in s)
+                        {
+                            if (stBuffer == string.Empty)
+                            {
+                                break;
+                            }
+
+                            // カンマ区切りで分割して配列に格納する
+                            string[] stCSV = stBuffer.Split(',');
+
+                            // MDBへ登録する
+                            // 勤務記録ヘッダテーブル
+                            if (stCSV[0] == "*")
+                            {
+                                sb.Clear();
+                                sb.Append("insert into 出勤簿ヘッダ ");
+                                sb.Append("(ID,社員ID,個人番号,氏名,年,月,所属コード,給与区分,画像名,出勤日数合計,");
+                                sb.Append("有休日数合計,有休時間合計,特休日数合計,振休日数合計,振出日数合計,遅刻早退回数,欠勤日数合計,実稼動日数合計,");
+                                sb.Append("総労働,総労働分,残業時,残業分,深夜勤務時間合計,月間規定勤務時間,");
+                                sb.Append("パート労働時間総枠,確認,データ領域名,更新年月日,立替金,旅費交通費,勤務先区分) ");
+                                sb.Append("values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+
+                                sCom.CommandText = sb.ToString();
+                                sCom.Parameters.Clear();
+
+                                //hdID = stCSV[1];  // 2021/11/04 コメント化
+                                // ヘッダーキー 2021/11/04
+                                hdID = stCSV[1].Substring(0, 17);
+
+                                // ID
+                                sCom.Parameters.AddWithValue("@ID", Utility.getStringSubMax(stCSV[1], 17));
+
+                                // 社員ID
+                                string pID = global.flgOff.ToString();    // 2016/11/16　不使用のため全てゼロとする
+                                sCom.Parameters.AddWithValue("@sID", pID);
+
+                                // 個人番号
+                                sCom.Parameters.AddWithValue("@kjn", Utility.getStringSubMax(stCSV[5], global.ShainLength));
+
+                                // 氏名
+                                string zCode = string.Empty;
+                                string zName = string.Empty;
+                                string sName = Utility.ComboShain.getXlsSname(xS, Utility.StrtoInt(stCSV[5].Trim().PadLeft(global.ShainLength, '0')), out zCode, out zName);
+                                sCom.Parameters.AddWithValue("@Name", sName);
+
+                                // 年
+                                sYear = Utility.getStringSubMax(stCSV[3], 2);
+                                sCom.Parameters.AddWithValue("@year", sYear);
+
+                                // 月
+                                sMonth = Utility.getStringSubMax(stCSV[4], 2);
+                                sCom.Parameters.AddWithValue("@month", sMonth);
+                                
+                                sCom.Parameters.AddWithValue("@Szk",  Utility.getStringSubMax(stCSV[6], global.ShozokuLength));  // 所属コード
+                                sCom.Parameters.AddWithValue("@kyuk", _YakushokuType);  // 給与区分
+                                sCom.Parameters.AddWithValue("@IMG",  Utility.getStringSubMax(stCSV[1], 21));   // 画像名
+                                sCom.Parameters.AddWithValue("@t1",     "0");   // 出勤日数合計
+                                sCom.Parameters.AddWithValue("@t2",     "0");   // 有休日数合計
+                                sCom.Parameters.AddWithValue("@t3",     "0");   // 有休時間合計
+                                sCom.Parameters.AddWithValue("@t4",     "0");   // 特休日数合計
+                                sCom.Parameters.AddWithValue("@furi",   "0");   // 振休日数合計
+                                sCom.Parameters.AddWithValue("@furide", "0");   // 振出日数合計
+                                sCom.Parameters.AddWithValue("@chi",    "0");   // 遅刻早退回数
+                                sCom.Parameters.AddWithValue("@t5",     "0");   // 欠勤日数合計
+                                sCom.Parameters.AddWithValue("@t6",     "0");   // 実稼動日数合計
+                                sCom.Parameters.AddWithValue("@t7",     "0");   // 総労働
+                                sCom.Parameters.AddWithValue("@t8",     "0");   // 総労働分
+                                sCom.Parameters.AddWithValue("@t9",     "0");   // 残業時
+                                sCom.Parameters.AddWithValue("@t10",    "0");   // 残業分
+                                sCom.Parameters.AddWithValue("@t11",    "0");   // 深夜勤務時間合計
+                                sCom.Parameters.AddWithValue("@t12",    "0");   // 月間規定勤務時間
+                                sCom.Parameters.AddWithValue("@t13",    "0");   // パート労働時間総枠
+                                sCom.Parameters.AddWithValue("@t14",    "0");   // 確認
+                                sCom.Parameters.AddWithValue("@t15", _grpID);   // データ領域名
+                                sCom.Parameters.AddWithValue("@Date", DateTime.Today.ToShortDateString());  // 更新年月日
+                                sCom.Parameters.AddWithValue("@t201611_1", "0");    // 立替金
+                                sCom.Parameters.AddWithValue("@t201611_2", "0");    // 旅費交通費
+                                sCom.Parameters.AddWithValue("@subMain", Utility.getStringSubMax(stCSV[2], 1));     // 勤務先区分 : 2018/03/31
+
+                                // テーブル書き込み
+                                sCom.ExecuteNonQuery();
+                            }
+                            else
+                            {
+                                if (DateTime.TryParse(sYear + "/" + sMonth + "/" + stCSV[0], out dt))
+                                {
+                                    // 存在する日付なら出勤簿明細テーブルにレコードを追加する
+                                    sb.Clear();
+                                    sb.Append("insert into 出勤簿明細 ");
+                                    sb.Append("(ヘッダID,日付,休暇記号,有給記号,開始時,開始分,終了時,終了分,規定内時,");
+                                    sb.Append("規定内分,深夜帯時,深夜帯分,実働時,実働分,更新年月日) ");
+                                    sb.Append("values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                                    sCom.CommandText = sb.ToString();
+
+                                    sCom.Parameters.Clear();
+                                    sCom.Parameters.AddWithValue("@HDID", hdID);        // ヘッダID
+                                    sCom.Parameters.AddWithValue("@day", stCSV[0]);    // 日付
+
+                                    // getStringSubMaxを使用 : 2018/03/31
+                                    sCom.Parameters.AddWithValue("@Kyuka", Utility.getStringSubMax(stCSV[1], 1));  // 休暇記号
+                                    sCom.Parameters.AddWithValue("@yukyu", Utility.getStringSubMax(stCSV[2], 1));  // 有給休暇
+                                    sCom.Parameters.AddWithValue("@sh",    Utility.getStringSubMax(stCSV[3], 2));  // 開始時
+                                    sCom.Parameters.AddWithValue("@sm",    Utility.getStringSubMax(stCSV[4], 2));  // 開始分
+                                    sCom.Parameters.AddWithValue("@eh",    Utility.getStringSubMax(stCSV[5], 2));  // 終了時
+                                    sCom.Parameters.AddWithValue("@em",    Utility.getStringSubMax(stCSV[6], 2));  // 終了分
+                                    sCom.Parameters.AddWithValue("@kh",    Utility.getStringSubMax(stCSV[7], 1));  // 規定内時
+                                    sCom.Parameters.AddWithValue("@km",    Utility.getStringSubMax(stCSV[8], 2));  // 規定内分
+                                    sCom.Parameters.AddWithValue("@ksh",   Utility.getStringSubMax(stCSV[9], 1));  // 深夜帯時
+                                    sCom.Parameters.AddWithValue("@ksm",   Utility.getStringSubMax(stCSV[10], 2));  // 深夜帯分
+                                    sCom.Parameters.AddWithValue("@th",    Utility.getStringSubMax(stCSV[11], 2));  // 実働時
+                                    sCom.Parameters.AddWithValue("@tm",    Utility.getStringSubMax(stCSV[12], 2));  // 実働分
+                                    sCom.Parameters.AddWithValue("@Date",  DateTime.Today.ToShortDateString());     // 更新年月日
+
+                                    // テーブル書き込み
+                                    sCom.ExecuteNonQuery();
+                                }
+                            }
+
+                            //// 行カウントインクルメント
+                            //sline++;
+                        }
+                    }
+                }
+
+                // トランザクションコミット
+                sTran.Commit();
+
+                // いったんオーナーをアクティブにする
+                this.Activate();
+
+                // 進行状況ダイアログを閉じる
+                frmP.Close();
+
+                // オーナーのフォームを有効に戻す
+                this.Enabled = true;
+
+                //CSVファイルを削除する
+                foreach (string files in System.IO.Directory.GetFiles(Properties.Settings.Default.dataPath, "*.csv"))
+                {
+                    System.IO.File.Delete(files);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "出勤簿CSVインポート処理", MessageBoxButtons.OK);
+
+                // トランザクションロールバック
+                sTran.Rollback();
+            }
+            finally
+            {
+                if (sCom.Connection.State == ConnectionState.Open)
+                {
+                    sCom.Connection.Close();
+                }
+            }
+
+        }
+
+
+
+
+
+
         ///----------------------------------------------------------
         /// <summary>
         ///     CSVデータをMDBへインサートする </summary>
@@ -379,25 +619,32 @@ namespace JMC.OCR
 
             //CSVファイルがなければ終了
             int cTotal = 0;
-            if (inCsv.Length == 0) return;
-            else cTotal = inCsv.Length;
+            if (inCsv.Length == 0)
+            {
+                return;
+            }
+            else
+            {
+                cTotal = inCsv.Length;
+            }
 
             //オーナーフォームを無効にする
             this.Enabled = false;
 
             //プログレスバーを表示する
             frmPrg frmP = new frmPrg();
-            frmP.Owner = this;
+            frmP.Owner  = this;
             frmP.Show();
 
             // データベースへ接続
             SysControl.SetDBConnect Con = new SysControl.SetDBConnect();
-            OleDbCommand sCom = new OleDbCommand();
-            sCom.Connection = Con.cnOpen();
+            OleDbCommand sCom = new OleDbCommand
+            {
+                Connection = Con.cnOpen()
+            };
 
             //トランザクション開始
-            OleDbTransaction sTran = null;
-            sTran = sCom.Connection.BeginTransaction();
+            OleDbTransaction sTran = sCom.Connection.BeginTransaction();
             sCom.Transaction = sTran;
 
             try
@@ -430,7 +677,10 @@ namespace JMC.OCR
                         var s = File.ReadAllLines(files, Encoding.Default);
                         foreach (var stBuffer in s)
                         {
-                            if (stBuffer == string.Empty) break;
+                            if (stBuffer == string.Empty)
+                            {
+                                break;
+                            }
 
                             // カンマ区切りで分割して配列に格納する
                             string[] stCSV = stBuffer.Split(',');
@@ -933,7 +1183,7 @@ namespace JMC.OCR
                 sCom.Connection.Close();
 
                 //画像表示
-                // ShowImage(global.pblImageFile);
+                ShowImage(global.pblImageFile);
 
                 ////////画像イメージ表示
                 //////if (System.IO.File.Exists(Properties.Settings.Default.dataPath + global.pblImageFile))
@@ -1720,6 +1970,21 @@ namespace JMC.OCR
                 if (Utility.NulltoStr(dataGridView1[cYukyu, i].Value) == global.ZENNICHI_YUKYU)
                 {
                     continue;
+                }
+
+                // 全日有休の翌日の24:00開始も対象外とする：2020/03/31
+                if (i > 0)
+                {
+                    if (Utility.NulltoStr(dataGridView1[cYukyu, i - 1].Value) == global.ZENNICHI_YUKYU)
+                    {
+                        // 前日が全日有休
+                        if (Utility.NulltoStr(dataGridView1[cSH, i].Value) == "24" &&
+                            Utility.StrtoInt(Utility.NulltoStr(dataGridView1[cSM, i].Value)) == global.flgOff)
+                        {
+                            // 24:00開始のとき、対象外
+                            continue;
+                        }
+                    }
                 }
 
                 // 半日有給は実労時間の1/2を当日の労働時間とする：2018/04/05
@@ -3734,16 +3999,25 @@ namespace JMC.OCR
             CurDataUpDate(cI);
 
             // エラーチェック実行①:カレントレコードから最終レコードまで
-            if (ErrCheckMain(sID[cI], sID[sID.Length - 1]) == false) return;
+            if (!ErrCheckMain(sID[cI], sID[sID.Length - 1]))
+            {
+                return;
+            }
 
             // エラーチェック実行②:最初のレコードからカレントレコードの前のレコードまで
             if (cI > 0)
             {
-                if (ErrCheckMain(sID[0], sID[cI - 1]) == false) return;
+                if (!ErrCheckMain(sID[0], sID[cI - 1]))
+                {
+                    return;
+                }
             }
 
             // 同日勤務エラーチェック
-            if (!ErrCheckSameTime()) return;
+            if (!ErrCheckSameTime())
+            {
+                return;
+            }
 
             // 汎用データ作成
             SaveDataJcs();
