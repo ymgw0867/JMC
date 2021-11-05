@@ -133,7 +133,7 @@ namespace JMC.OCR
             {
                 Cursor = Cursors.WaitCursor;
 
-                // 作業フォルダがなければ作成する 2021/04/17
+                // 作業フォルダがなければ作成する
                 if (!System.IO.Directory.Exists(InPath))
                 {
                     System.IO.Directory.CreateDirectory(InPath);
@@ -146,7 +146,6 @@ namespace JMC.OCR
                 }
 
                 // 作業フォルダ(WORK)内の全てのファイルを削除する（通常ファイルは存在しないが例外処理などで残ってしまった場合に備えて念のため）
-                // 2021/04/17
                 foreach (string files in System.IO.Directory.GetFiles(InPath, "*"))
                 {
                     System.IO.File.Delete(files);
@@ -158,7 +157,7 @@ namespace JMC.OCR
                     System.IO.File.Delete(files);
                 }
 
-                // SCANフォルダ内の全てのファイルを作業フォルダに移動する　2021/04/17
+                // SCANフォルダ内の全てのファイルを作業フォルダに移動する
                 foreach (string files in System.IO.Directory.GetFiles(scanPath, "*"))
                 {
                     File.Copy(files, InPath + Path.GetFileName(files));
@@ -171,7 +170,7 @@ namespace JMC.OCR
                 // マルチTIFを分解して画像ファイルをTRAYフォルダへ保存する
                 foreach (string files in System.IO.Directory.GetFiles(InPath, "*.tif"))
                 {
-                    curFnm = files; // 2021/04/17
+                    curFnm = files; 
 
                     //TIFFのImageCodecInfoを取得する//
                     ImageCodecInfo ici = GetEncoderInfo("image/tiff");
@@ -181,7 +180,7 @@ namespace JMC.OCR
                         return false;
                     }
 
-                    // 後片付けのためにusing 2021/04/17
+                    // 後片付けのためにusing 
                     using (System.IO.FileStream tifFS = new System.IO.FileStream(files, System.IO.FileMode.Open, System.IO.FileAccess.Read))
                     {
                         Image gim = Image.FromStream(tifFS);
@@ -195,11 +194,11 @@ namespace JMC.OCR
                         {
                             gim.SelectActiveFrame(gfd, i);
 
-                            // 画像サイズ変更（Ａ４縦サイズ）
-                            //Bitmap jj = new Bitmap(gim, 1637, 2322);
+                            // 後片付けのためにusing
+                            //using (Bitmap jj = new Bitmap(gim, 1728, 2322))　// コメント化 2021/11/05
 
-                            // 後片付けのためにusing 2021/04/17
-                            using (Bitmap jj = new Bitmap(gim, 1728, 2322))
+                            // 後片付けのためにusing 2021/11/05
+                            using (Bitmap jj = new Bitmap(gim, gim.Width, gim.Height))
                             {
                                 // 画像解像度変更
                                 jj.SetResolution(200F, 200F);
@@ -216,38 +215,18 @@ namespace JMC.OCR
 
                                 EncoderParameters ep = null;
 
-                                // 圧縮方法を指定する（後片付けのためにusing 2021/04/17）
+                                // 圧縮方法を指定する（後片付けのためにusing）
                                 using (ep = new EncoderParameters(1))
                                 {
                                     ep.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Compression, (long)EncoderValue.CompressionCCITT4);
-
-                                    //  コメント化：2021/03/22
-                                    //// 画像保存
-                                    //gim.Save(fnm, ici, ep);
 
                                     // 画像保存
                                     jj.Save(fnm, ici, ep);
                                 }
                             }
-
-                            //  以下、コメント化：2021/04/17
-                            //ep = new EncoderParameters(1);
-                            //ep.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Compression, (long)EncoderValue.CompressionCCITT4);
-
-                            ////  コメント化：2021/03/22
-                            ////// 画像保存
-                            ////gim.Save(fnm, ici, ep);
-
-                            //// 画像保存
-                            //jj.Save(fnm, ici, ep);
-
-                            //ep.Dispose();
-
-                            //// 後片付け 2021/04/17
-                            //jj.Dispose();
                         }
 
-                        // 後片付け 2021/04/17
+                        // 後片付け
                         gim.Dispose();
                     }
                 }
