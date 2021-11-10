@@ -22,11 +22,15 @@ namespace JMC
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            // キャプションにバージョンを追加 : 2021/11/10
+            this.Text += "  ver " + Application.ProductVersion;
+
+            // 表示サイズ
             Utility.WindowsMaxSize(this, this.Width, this.Height);  // 最大サイズ
             Utility.WindowsMinSize(this, this.Width, this.Height);  // 最小サイズ
 
             // 過去出勤簿ヘッダ＠所属コード桁数４ケタ　2013/06/13
-            mdbSzkLenAlter();
+            // mdbSzkLenAlter(); // コメント化：2021/11/10
         }
 
         /// <summary>

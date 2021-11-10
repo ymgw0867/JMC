@@ -39,7 +39,7 @@ namespace JMC.OCR
                 return;
             }
 
-            // ＯＣＲ認識処理
+            // ＯＣＲ認識処理 : 2021/11/10
             GetOcrText();
 
 
@@ -59,6 +59,10 @@ namespace JMC.OCR
             this.Close();
         }
 
+        ///--------------------------------------------------------
+        /// <summary>
+        ///     ＯＣＲ認識処理を行う：2021/11/05 </summary>
+        ///--------------------------------------------------------
         private void GetOcrText()
         {
             try
@@ -110,6 +114,7 @@ namespace JMC.OCR
             }
             finally
             {
+                MessageBox.Show("ＯＣＲ認識処理が終了しました","OCR Reader",MessageBoxButtons.OK, MessageBoxIcon.Information);
                 //notifyIcon1.Visible = true;
             }
         }

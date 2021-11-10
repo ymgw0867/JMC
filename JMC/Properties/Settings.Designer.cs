@@ -88,7 +88,7 @@ namespace JMC.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("2020")]
+        [global::System.Configuration.DefaultSettingValueAttribute("2000")]
         public int RekiHosei {
             get {
                 return ((int)(this["RekiHosei"]));
