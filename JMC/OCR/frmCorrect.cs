@@ -2543,6 +2543,12 @@ namespace JMC.OCR
 
                 for (int i = 0; i < _MULTIGYO; i++)
                 {
+                    // 明細IDが無い行はネグる：2021/11/26
+                    if (Utility.NulltoStr(dataGridView1[cID, i].Value) == "")
+                    {
+                        continue;
+                    }
+
                     sCom.Parameters.Clear();
 
                     sCom.Parameters.AddWithValue("@kyuka", Utility.NulltoStr(dataGridView1[cKyuka, i].Value));  // 休暇記号
